@@ -19,7 +19,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/RUAN0007/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 )
@@ -231,6 +231,26 @@ func (stub *MockStub) GetPrivateDataQueryResult(collection, query string) (shim.
 func (stub *MockStub) GetState(key string) ([]byte, error) {
 	value := stub.State[key]
 	return value, nil
+}
+
+func (stub *MockStub) GetReads() map[string][]byte {
+	return nil
+}
+
+func (stub *MockStub) GetWrites() map[string][]byte {
+	return nil
+}
+
+func (stub *MockStub) Hist(key string, blk uint64) (string, uint64, error) {
+	return "", 0, nil
+}
+
+func (stub *MockStub) Backward(key string, blk uint64) ([]string, []uint64, string, error) {
+	return nil, nil, "", nil
+}
+
+func (stub *MockStub) Forward(key string, blk uint64) ([]string, []uint64, []string, error) {
+	return nil, nil, nil, nil
 }
 
 // PutState writes the specified `value` and `key` into the ledger.

@@ -208,6 +208,28 @@ func (h *Handler) handleTransaction(msg *pb.ChaincodeMessage) (*pb.ChaincodeMess
 
 	res := h.cc.Invoke(stub)
 
+	args := make([]string, 0)
+	for _, inp := range input.Args {
+		args = append(args, string(inp))
+	}
+	if prov := h.cc.Prov(stub, stub.GetReads(), stub.GetWrites()); prov != nil {
+	for k, deps := range prov {
+			depList := ""
+			for _, dep := range deps {
+				depList = depList + dep + "_"
+			}
+			provKey := k + "_prov"
+			fmt.Printf("  Start to put Provenance info with key " + provKey + "\n")
+			if err := h.handlePutState("", provKey, []byte(depList), stub.ChannelID, stub.TxID); err != nil {
+				fmt.Print("  Put Provenance fails for key " + k + "\n")
+			} else {
+				fmt.Printf("  Put Provenance info with key " + provKey + " and value " + depList + "\n")
+			}
+		}
+	} else {
+		fmt.Print("  No provenance captured.\n")
+	}
+
 	// Endorser will handle error contained in Response.
 	resBytes, err := proto.Marshal(&res)
 	if err != nil {

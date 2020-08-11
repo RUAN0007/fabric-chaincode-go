@@ -3,6 +3,8 @@
 
 // Package shim provides APIs for the chaincode to access its state
 // variables, transaction context and call other chaincodes.
+// RuanPC
+// RuanPingcheng
 package shim
 
 import (
@@ -14,7 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
+	"github.com/RUAN0007/fabric-chaincode-go/shim/internal"
 	peerpb "github.com/hyperledger/fabric-protos-go/peer"
 )
 

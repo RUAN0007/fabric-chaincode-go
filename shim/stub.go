@@ -16,6 +16,9 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"encoding/json"
+	"strconv"
+	"strings"
 )
 
 // ChaincodeStub is an object passed to chaincode for shim side handling of
@@ -36,6 +39,8 @@ type ChaincodeStub struct {
 	binding   []byte
 
 	decorations map[string][]byte
+	reads       map[string][]byte
+	writes      map[string][]byte
 }
 
 // ChaincodeInvocation functionality
@@ -49,6 +54,8 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.Chainc
 		signedProposal:             signedProposal,
 		decorations:                input.Decorations,
 		validationParameterMetakey: pb.MetaDataKeys_VALIDATION_PARAMETER.String(),
+		reads: make(map[string][]byte),
+		writes: make(map[string][]byte),
 	}
 
 	// TODO: sanity check: verify that every call to init with a nil
@@ -133,6 +140,67 @@ func (s *ChaincodeStub) GetDecorations() map[string][]byte {
 	return s.decorations
 }
 
+
+func (stub *ChaincodeStub) GetReads() map[string][]byte {
+		return stub.reads
+}
+
+func (stub *ChaincodeStub) GetWrites() map[string][]byte {
+	return stub.writes
+}
+
+func (stub *ChaincodeStub) Hist(key string, blk uint64) (string, uint64, error) {
+	queryKey := key + "_" + strconv.Itoa(int(blk)) + "_hist"
+
+	if val, err := stub.GetState(queryKey); err != nil {
+		return "", 0, err
+	} else {
+		result := HistResult{}
+		if err := json.Unmarshal(val, &result); err != nil {
+			return "", 0, err
+		} else if len(result.Msg) > 0 {
+			return "", 0, errors.New("Fail for the historical query with msg " + result.Msg)
+		} else {
+			return result.Val, result.CreatedBlk, nil
+		}
+	}
+}
+
+func (stub *ChaincodeStub) Backward(key string, blk uint64) ([]string, []uint64, string, error) {
+	queryKey := key + "_" + strconv.Itoa(int(blk)) + "_backward"
+
+	if val, err := stub.GetState(queryKey); err != nil {
+		return nil, nil, "", err
+	} else {
+		result := BackwardResult{}
+		if err := json.Unmarshal(val, &result); err != nil {
+			return nil, nil, "", err
+		} else if len(result.Msg) > 0 {
+			return nil, nil, "", errors.New("Fail for the backward query with msg " + result.Msg)
+		} else {
+			return result.DepKeys, result.DepBlkIdx, result.TxnID, nil
+		}
+	}
+}
+
+func (stub *ChaincodeStub) Forward(key string, blk uint64) ([]string, []uint64, []string, error) {
+	queryKey := key + "_" + strconv.Itoa(int(blk)) + "_forward"
+	if val, err := stub.GetState(queryKey); err != nil {
+		return nil, nil, nil, err
+	} else {
+		result := ForwardResult{}
+		if err := json.Unmarshal(val, &result); err != nil {
+			return nil, nil, nil, err
+		} else if len(result.Msg) > 0 {
+			return nil, nil, nil, errors.New("Fail for the forward query with msg " + result.Msg)
+		} else {
+			return result.ForwardKeys, result.ForwardBlkIdx, result.ForwardTxnIDs, nil
+		}
+	}
+}
+
+
+
 // GetMSPID returns the local mspid of the peer by checking the CORE_PEER_LOCALMSPID
 // env var and returns an error if the env var is not set
 func GetMSPID() (string, error) {
@@ -162,7 +230,14 @@ func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, cha
 func (s *ChaincodeStub) GetState(key string) ([]byte, error) {
 	// Access public data by setting the collection to empty string
 	collection := ""
-	return s.handler.handleGetState(collection, key, s.ChannelID, s.TxID)
+
+	val, err := s.handler.handleGetState(collection, key, s.ChannelID, s.TxID)
+	if !strings.HasSuffix(key, "_hist") && !strings.HasSuffix(key, "_backward") &&
+		!strings.HasSuffix(key, "_forward") && err == nil {
+		s.reads[key] = val
+	}
+	return val, err
+	// return s.handler.handleGetState(collection, key, s.ChannelID, s.TxID)
 }
 
 // SetStateValidationParameter documentation can be found in interfaces.go
@@ -189,7 +264,13 @@ func (s *ChaincodeStub) PutState(key string, value []byte) error {
 	}
 	// Access public data by setting the collection to empty string
 	collection := ""
-	return s.handler.handlePutState(collection, key, value, s.ChannelID, s.TxID)
+	err := s.handler.handlePutState(collection, key, value, s.ChannelID, s.TxID)
+	if err == nil {
+		s.writes[key] = value
+	}
+	return err
+
+	// return s.handler.handlePutState(collection, key, value, s.ChannelID, s.TxID)
 }
 
 func (s *ChaincodeStub) createStateQueryIterator(response *pb.QueryResponse) *StateQueryIterator {
